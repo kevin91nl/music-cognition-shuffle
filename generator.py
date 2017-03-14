@@ -1,6 +1,4 @@
-from collections import Counter
 import numpy as np
-from random import choice
 from midiutil.MidiFile import MIDIFile
 import random
 
@@ -14,10 +12,10 @@ def generate_sequence(notes, path):
     """
     track = 0
     channel = 0
-    time = 0  # In beats
-    duration = 1  # In beats
-    tempo = 240  # In BPM
-    volume = 100  # 0-127, as per the MIDI standard
+    time = 0        # In beats
+    duration = 1    # In beats
+    tempo = 200     # In BPM
+    volume = 100    # 0-127, as per the MIDI standard
 
     midi_file = MIDIFile(1)
     midi_file.addTempo(track, time, tempo)
@@ -110,10 +108,10 @@ def generate_melody(alphabet, length, unigram_counts, unigram_indices, bigram_co
     :param alpha:            The alpha value for the Dirichlet prior
     :return:                 A melody of the specified length
     """
-    melody = [-1]
+    new_melody = [-1]
 
     for _ in range(length):
-        last_element = melody[-1]
+        last_element = new_melody[-1]
 
         probs = []
         for element in alphabet:
@@ -141,13 +139,19 @@ def generate_melody(alphabet, length, unigram_counts, unigram_indices, bigram_co
         probs = probs / sum(probs)
         element_index = np.where(np.random.multinomial(1, probs))[0][0]
         element = alphabet[element_index]
-        melody.append(element)
+        new_melody.append(element)
 
     # Remove the first dummy note
-    return melody[1:]
+    return new_melody[1:]
 
 
 def shuffle_elements(groups):
+    """
+    Shuffle the elements in each group given a list of groups.
+
+    :param groups: A list of groups
+    :return:       The same list of groups in which the elements of each group are shuffled
+    """
     new_groups = []
     for group in groups:
         # Copy & Shuffle!
@@ -158,6 +162,7 @@ def shuffle_elements(groups):
 
 
 if __name__ == '__main__':
+    # Fix the seeds
     random.seed(0)
     np.random.seed(0)
 
@@ -176,6 +181,7 @@ if __name__ == '__main__':
     generate_sequence(jacques, 'data/jacques.mid')
     generate_sequence(random_melody, 'data/random.mid')
 
+    # Loop through all melodies and apply the shuffling operator
     melodies = [('twinkle', twinkle), ('jacques', jacques), ('random', random_melody)]
     for melody_name, melody in melodies:
         for group_size in [1, 2, 3, 4, 6, 12, 24]:
