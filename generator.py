@@ -95,7 +95,7 @@ def get_counts(sequence):
     return counts, indices
 
 
-def generate_melody(alphabet, length, unigram_counts, unigram_indices, bigram_counts, bigram_indices, alpha=1):
+def generate_melody(alphabet, length, unigram_counts, unigram_indices, bigram_counts, bigram_indices, trigram_counts, trigram_indices, alpha=1):
     """
     Generate a melody given unigram and bigram counts.
 
@@ -105,18 +105,28 @@ def generate_melody(alphabet, length, unigram_counts, unigram_indices, bigram_co
     :param unigram_indices:  The indices of the unigrams
     :param bigram_counts:    The count of the bigrams
     :param bigram_indices:   The indices of the bigrams
+    :param trigram_counts:   The count of the trigrams
+    :param trigram_indices:  The indices of the trigrams
     :param alpha:            The alpha value for the Dirichlet prior
     :return:                 A melody of the specified length
     """
-    new_melody = [-1]
+    new_melody = [-1, -1]
 
     for _ in range(length):
-        last_element = new_melody[-1]
+        prev_element_1 = new_melody[-1]
+        prev_element_2 = new_melody[-2]
 
         probs = []
         for element in alphabet:
-            new_state = [last_element, element]
+            new_state = [prev_element_2, prev_element_1, element]
             score = 0
+
+            # Calculate score based on trigrams
+            numerator = 1
+            if new_state in trigram_indices:
+                numerator = trigram_counts[trigram_indices.index(new_state)] + alpha
+            denominator = alpha * len(trigram_indices) + sum(trigram_counts.values())
+            score += np.log(numerator / denominator)
 
             # Calculate score based on bigrams
             numerator = 1
@@ -142,7 +152,7 @@ def generate_melody(alphabet, length, unigram_counts, unigram_indices, bigram_co
         new_melody.append(element)
 
     # Remove the first dummy note
-    return new_melody[1:]
+    return new_melody[2:]
 
 
 def shuffle_elements(groups):
@@ -162,30 +172,32 @@ def shuffle_elements(groups):
 
 
 if __name__ == '__main__':
-    # Fix the seeds
-    random.seed(0)
-    np.random.seed(0)
+    for seed in range(10):
+        # Fix the seeds
+        random.seed(seed)
+        np.random.seed(seed)
 
-    # Two well-known melodies
-    twinkle = [60, 60, 67, 67, 69, 69, 67, 65, 65, 64, 64, 62, 62, 60, 67, 67, 65, 65, 64, 64, 62, 62, 67, 67]
-    jacques = [60, 62, 64, 60, 60, 62, 64, 60, 64, 65, 67, 64, 65, 67, 67, 69, 67, 65, 64, 60, 67, 69, 67, 65]
+        # Two well-known melodies
+        jacques = [60, 62, 64, 60, 60, 62, 64, 60, 64, 65, 67, 64, 65, 67, 67, 69, 67, 65, 64, 60, 67, 69, 67, 65]
+        farm = [65, 65, 65, 60, 62, 62, 60, 69, 69, 67, 67, 65, 60, 65, 65, 65, 60, 62, 62, 60, 69, 69, 67, 67]
 
-    # Generate a new melody based on the unigram counts and bigram counts
-    unigram_counts, unigram_indices = get_counts(get_ngrams(twinkle + jacques, 1))
-    bigram_counts, bigram_indices = get_counts(get_ngrams([-1] + twinkle + [-1] + jacques, 2))
-    random_melody = generate_melody(list(set(twinkle + jacques)), 24, unigram_counts, unigram_indices, bigram_counts,
-                                    bigram_indices)
+        # Generate a new melody based on the unigram counts and bigram counts
+        unigram_counts, unigram_indices = get_counts(get_ngrams(jacques + farm, 1))
+        bigram_counts, bigram_indices = get_counts(get_ngrams( [-1] + jacques + [-1] + farm, 2))
+        trigram_counts, trigram_indices = get_counts(get_ngrams([-1, -1] + jacques + [-1, -1] + farm, 3))
+        random_melody = generate_melody(list(set(jacques + farm)), 24, unigram_counts, unigram_indices, bigram_counts,
+                                        bigram_indices, trigram_counts, trigram_indices)
 
-    # Store the original melodies
-    generate_sequence(twinkle, 'data/twinkle.mid')
-    generate_sequence(jacques, 'data/jacques.mid')
-    generate_sequence(random_melody, 'data/random.mid')
+        # Store the original melodies
+        generate_sequence(jacques, 'data/jacques.mid')
+        generate_sequence(farm, 'data/farm.mid')
+        generate_sequence(random_melody, 'data/random.mid')
 
-    # Loop through all melodies and apply the shuffling operator
-    melodies = [('twinkle', twinkle), ('jacques', jacques), ('random', random_melody)]
-    for melody_name, melody in melodies:
-        for group_size in [1, 2, 3, 4, 6, 12, 24]:
-            groups = make_groupings(melody, group_size)
-            groups = shuffle_elements(groups)
-            sequence = flatten(groups)
-            generate_sequence(sequence, 'data/shuffle_elements_%s_%d.mid' % (melody_name, group_size))
+        # Loop through all melodies and apply the shuffling operator
+        melodies = [('jacques', jacques), ('farm', farm), ('random', random_melody)]
+        for melody_name, melody in melodies:
+            for group_size in [1, 2, 3, 4, 6, 8, 12, 24]:
+                groups = make_groupings(melody, group_size)
+                groups = shuffle_elements(groups)
+                sequence = flatten(groups)
+                generate_sequence(sequence, 'data/shuffle_elements_%s_%d_%d.mid' % (melody_name, group_size, seed))
